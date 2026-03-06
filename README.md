@@ -27,7 +27,10 @@ repomedic scan --config examples/config.json
 # JSON output for automation
 repomedic scan --config examples/config.json --json
 
-# Apply labels/comments (GitHub adapter implemented)
+# Explicit dry-run (default)
+repomedic scan --provider github --repo owner/repo --dry-run
+
+# Apply labels/comments (GitHub adapter implemented; overrides dry-run)
 repomedic scan --provider github --repo owner/repo --apply
 ```
 

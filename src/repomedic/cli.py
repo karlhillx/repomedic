@@ -52,7 +52,8 @@ def scan(
     max_items_per_repo: Annotated[int, typer.Option("--max-items-per-repo")] = 100,
     limit: Annotated[int, typer.Option("--limit", help="Max findings to print")] = 50,
     as_json: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
-    apply: Annotated[bool, typer.Option("--apply", help="Apply provider actions (labels/comments)")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run/--no-dry-run", help="Preview only; no provider writes")] = True,
+    apply: Annotated[bool, typer.Option("--apply", help="Apply provider actions (overrides dry-run)")] = False,
 ) -> None:
     cfg = _load_config(config, repos or [], stale_after_days, max_items_per_repo, provider)
     if not cfg.repos:
@@ -70,13 +71,15 @@ def scan(
     selected_keys = {(f.repo, f.number) for f in findings}
     selected_actions = [a for a in result.actions if (a.repo, a.number) in selected_keys]
 
-    if apply:
+    effective_dry_run = False if apply else dry_run
+    if not effective_dry_run:
         adapter.apply_actions(selected_actions, dry_run=False)
 
     if as_json:
         payload = {
             "provider": cfg.provider.value,
             "apply": apply,
+            "dry_run": effective_dry_run,
             "findings": [f.model_dump(mode="json") for f in findings],
             "actions_count": len(selected_actions),
         }
@@ -87,7 +90,8 @@ def scan(
         typer.echo("No actionable stale/blocked items found.")
         return
 
-    typer.echo(f"Mode: {'APPLY' if apply else 'DRY-RUN'} | provider={cfg.provider.value} | actions={len(selected_actions)}")
+    mode = "APPLY" if not effective_dry_run else "DRY-RUN"
+    typer.echo(f"Mode: {mode} | provider={cfg.provider.value} | actions={len(selected_actions)}")
 
     for f in findings:
         typer.echo(
