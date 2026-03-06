@@ -7,9 +7,9 @@ from typing import Annotated
 import typer
 from pydantic import BaseModel
 
-from .analyzer import analyze_item
-from .github_api import GitHubAPI
-from .models import Finding, ItemType
+from .engine import RepoMedicEngine
+from .models import Finding, Provider
+from .providers import BitbucketAdapter, GitHubAdapter, GitLabAdapter, ProviderAdapter
 
 app = typer.Typer(help="Scan repos for stale/blocked work and draft next actions.")
 
@@ -18,72 +18,51 @@ class ScanConfig(BaseModel):
     repos: list[str]
     stale_after_days: int = 10
     max_items_per_repo: int = 100
+    provider: Provider = Provider.GITHUB
 
 
-def _load_config(path: Path | None, repos: list[str], stale_after_days: int, max_items_per_repo: int) -> ScanConfig:
+def _load_config(path: Path | None, repos: list[str], stale_after_days: int, max_items_per_repo: int, provider: Provider) -> ScanConfig:
     if path:
         raw = json.loads(path.read_text(encoding="utf-8"))
         return ScanConfig.model_validate(raw)
-    return ScanConfig(repos=repos, stale_after_days=stale_after_days, max_items_per_repo=max_items_per_repo)
+    return ScanConfig(
+        repos=repos,
+        stale_after_days=stale_after_days,
+        max_items_per_repo=max_items_per_repo,
+        provider=provider,
+    )
+
+
+def _build_adapter(provider: Provider) -> ProviderAdapter:
+    if provider == Provider.GITHUB:
+        return GitHubAdapter()
+    if provider == Provider.BITBUCKET:
+        return BitbucketAdapter()
+    if provider == Provider.GITLAB:
+        return GitLabAdapter()
+    raise typer.BadParameter(f"Unsupported provider: {provider}")
 
 
 @app.command()
 def scan(
     repos: Annotated[list[str] | None, typer.Option("--repo", help="owner/repo (repeatable)")] = None,
     config: Annotated[Path | None, typer.Option("--config", help="Path to JSON config")] = None,
+    provider: Annotated[Provider, typer.Option("--provider", help="github|gitlab|bitbucket")] = Provider.GITHUB,
     stale_after_days: Annotated[int, typer.Option("--stale-after-days")] = 10,
     max_items_per_repo: Annotated[int, typer.Option("--max-items-per-repo")] = 100,
     limit: Annotated[int, typer.Option("--limit", help="Max findings to print")] = 50,
     as_json: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
 ) -> None:
-    cfg = _load_config(config, repos or [], stale_after_days, max_items_per_repo)
+    cfg = _load_config(config, repos or [], stale_after_days, max_items_per_repo, provider)
     if not cfg.repos:
         raise typer.BadParameter("No repos provided. Use --repo owner/name or --config.")
 
-    gh = GitHubAPI()
-    findings: list[Finding] = []
+    adapter = _build_adapter(cfg.provider)
+    engine = RepoMedicEngine(adapter=adapter, stale_after_days=cfg.stale_after_days)
+    result = engine.scan_repos(repos=cfg.repos, max_items_per_repo=cfg.max_items_per_repo)
 
-    for repo_name in cfg.repos:
-        issue_count = 0
-        for issue in gh.iter_issues(repo_name):
-            if issue_count >= cfg.max_items_per_repo:
-                break
-            findings.append(
-                analyze_item(
-                    repo=repo_name,
-                    number=issue.number,
-                    title=issue.title,
-                    url=issue.html_url,
-                    item_type=ItemType.ISSUE,
-                    updated_at=issue.updated_at,
-                    body=issue.body,
-                    labels=[lbl.name for lbl in issue.labels],
-                    stale_after_days=cfg.stale_after_days,
-                )
-            )
-            issue_count += 1
-
-        pr_count = 0
-        for pr in gh.iter_prs(repo_name):
-            if pr_count >= cfg.max_items_per_repo:
-                break
-            findings.append(
-                analyze_item(
-                    repo=repo_name,
-                    number=pr.number,
-                    title=pr.title,
-                    url=pr.html_url,
-                    item_type=ItemType.PR,
-                    updated_at=pr.updated_at,
-                    body=pr.body,
-                    labels=[lbl.name for lbl in pr.labels],
-                    stale_after_days=cfg.stale_after_days,
-                )
-            )
-            pr_count += 1
-
-    findings = sorted(
-        findings,
+    findings: list[Finding] = sorted(
+        result.findings,
         key=lambda f: (f.priority.value != "high", f.days_since_update * -1),
     )[:limit]
 

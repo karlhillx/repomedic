@@ -1,0 +1,14 @@
+image: python:3.11
+
+pipelines:
+  default:
+    - step:
+        name: Lint & smoke test
+        caches:
+          - pip
+        script:
+          - python -V
+          - pip install --upgrade pip
+          - pip install -e .
+          - python -m py_compile src/repomedic/*.py
+          - repomedic --help

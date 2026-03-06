@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
+
+
+class Provider(str, Enum):
+    GITHUB = "github"
+    BITBUCKET = "bitbucket"
+    GITLAB = "gitlab"
 
 
 class ItemType(str, Enum):
@@ -16,7 +23,20 @@ class Priority(str, Enum):
     LOW = "low"
 
 
+class WorkItem(BaseModel):
+    provider: Provider
+    repo: str
+    number: int
+    title: str
+    url: str
+    item_type: ItemType
+    updated_at: datetime
+    body: str | None = None
+    labels: list[str] = Field(default_factory=list)
+
+
 class Finding(BaseModel):
+    provider: Provider
     repo: str
     number: int
     title: str
