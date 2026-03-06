@@ -1,45 +1,62 @@
 # RepoMedic
 
-**RepoMedic is your cross-platform maintenance copilot for engineering backlogs.**
+**Stop backlog drift. Keep delivery velocity.**
 
-It scans issues and PRs across repository providers, scores maintenance risk (stale, blocked, high-priority), and turns the signal into concrete next actions.
-
-Instead of manually triaging dozens of tabs, you get a prioritized action list in one run.
+RepoMedic is a **cross-provider maintenance copilot** that scans issues + PRs, detects stale/blocked risk, and produces action-ready triage recommendations your team can execute immediately.
 
 ---
 
-## Why teams use it
+## What it does
 
-- **One triage brain, many repo platforms**
-- **Consistent scoring** for stale/blocked/risk across providers
-- **Action-ready output** (labels, comments, status intents)
-- **Automation-friendly** JSON output for CI and bots
-- **Safe by default** (dry-run first, apply when ready)
+RepoMedic continuously answers:
 
-RepoMedic is built for real maintenance workflows: noisy backlogs, aging PRs, and limited reviewer bandwidth.
+- What’s stale and silently rotting?
+- What’s blocked and needs escalation?
+- What should be triaged **first**?
+- What concrete action should happen next?
 
-## Provider versatility
+Output includes:
 
-RepoMedic is intentionally **not GitHub-only**.
+- `high | medium | low` priority
+- stale/blocked signals
+- suggested labels
+- drafted next-step comments
+- machine-readable JSON for automation
 
-Current adapter status:
+---
+
+## Why teams like it
+
+- **Cross-platform by design** — one core engine, many providers
+- **Consistent triage policy** — same scoring logic everywhere
+- **Safe rollout** — dry-run by default
+- **Automation-ready** — CI and bot friendly output
+- **Extensible** — add adapters without touching core scoring
+
+---
+
+## Built for multiple repo products
+
+RepoMedic is intentionally not tied to one vendor.
+
+### Current provider adapters
 
 - `github` → fetch + apply labels/comments
 - `bitbucket` → fetch implemented
 - `gitlab` → scaffold in place
 
-Planned/possible next adapters:
+### Next adapters (easy to add)
 
 - Jira
 - Linear
 - Azure DevOps
-- Any internal tracker with API access
+- Internal tools with API endpoints
 
-The architecture is adapter-based, so adding a provider means implementing a connector—not rewriting core scoring logic.
+The model stays shared (`WorkItem`, actions, scoring). Only provider connectors vary.
 
 ---
 
-## Quick start
+## Quickstart
 
 ```bash
 cd repomedic
@@ -50,74 +67,66 @@ pip install -e .
 # GitHub auth example
 export GITHUB_TOKEN=ghp_xxx
 
-# Scan repos (GitHub default)
+# GitHub default
 repomedic scan --repo owner/repo --repo owner/repo2
 
-# Pick provider explicitly
+# Explicit provider
 repomedic scan --provider github --repo owner/repo
 repomedic scan --provider bitbucket --repo workspace/repo_slug
 
 # Config-driven run
 repomedic scan --config examples/config.json
 
-# JSON output for automation
+# JSON for pipelines
 repomedic scan --config examples/config.json --json
 
-# Explicit dry-run (default)
+# Dry run (default)
 repomedic scan --provider github --repo owner/repo --dry-run
 
-# Apply actions (GitHub adapter currently supports labels/comments)
+# Apply actions (GitHub labels/comments implemented)
 repomedic scan --provider github --repo owner/repo --apply
 ```
 
-## What you get per item
-
-- priority: `high | medium | low`
-- stale/blocked flags
-- suggested labels
-- drafted next-step comment
-
 ---
 
-## Extensible architecture
+## Extensibility (adapter architecture)
 
-Core modules:
+Core (shared across all providers):
 
-- `engine.py` → shared orchestration and planning
-- `scoring.py` → stale/blocked/risk logic (provider-agnostic)
-- `models.py` → normalized `WorkItem`/`Finding` models
-- `actions.py` → normalized action intents (`AddLabel`, `PostComment`, `SetStatus`)
+- `engine.py` — orchestration and planning
+- `scoring.py` — stale/blocked/risk logic
+- `models.py` — normalized entities (`WorkItem`, `Finding`)
+- `actions.py` — normalized intents (`AddLabel`, `PostComment`, `SetStatus`)
 
-Provider modules:
+Provider layer:
 
-- `providers/base.py` → adapter contract
+- `providers/base.py` — adapter contract
 - `providers/github.py`
 - `providers/bitbucket.py`
 - `providers/gitlab.py`
 
-### Add a new provider
+### Add a provider in 4 steps
 
-1. Implement `ProviderAdapter` in `providers/<your_provider>.py`
-2. Normalize source data into `WorkItem`
-3. Map action intents back to provider-native API operations
-4. Register adapter in CLI provider selection
+1. Implement `ProviderAdapter`
+2. Map source records → `WorkItem`
+3. Map action intents → provider API operations
+4. Register in CLI provider selector
 
-That’s it—the scoring engine and prioritization stay shared.
+No core scoring rewrite needed.
 
 ---
 
-## CI / pipelines
+## Who this is for
 
-This repo includes `bitbucket-pipelines.yml` for CI smoke checks.
+- **Engineering Managers** — keep maintenance debt visible and prioritized
+- **Tech Leads** — standardize triage across teams and platforms
+- **Maintainers** — get actionable daily cleanup queues
 
-### Bitbucket remote setup
+---
 
-```bash
-git remote add bitbucket https://<username>@bitbucket.org/<workspace>/repomedic.git
-git push -u bitbucket main
-```
+## CI / pipeline integration
 
-### Makefile shortcuts
+`bitbucket-pipelines.yml` is included for smoke checks.
 
 ```bash
 make setup
@@ -125,4 +134,11 @@ make scan REPO=owner/repo
 # or
 make scan CONFIG=examples/config.json
 make ci
+```
+
+Bitbucket remote setup:
+
+```bash
+git remote add bitbucket https://<username>@bitbucket.org/<workspace>/repomedic.git
+git push -u bitbucket main
 ```
