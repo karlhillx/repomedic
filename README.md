@@ -105,6 +105,28 @@ Provider layer:
 - `providers/bitbucket.py`
 - `providers/gitlab.py`
 
+### Architecture diagram
+
+```mermaid
+flowchart LR
+    CLI[CLI: repomedic scan] --> Engine[RepoMedic Engine]
+    Engine --> Scoring[Shared Scoring Logic]
+    Engine --> Models[Normalized Models\nWorkItem / Finding]
+    Engine --> Actions[Normalized Actions\nAddLabel / PostComment / SetStatus]
+
+    Engine --> Adapter[Provider Adapter Contract]
+
+    Adapter --> GH[GitHub Adapter]
+    Adapter --> BB[Bitbucket Adapter]
+    Adapter --> GL[GitLab Adapter]
+    Adapter --> NEXT[Future Adapters\nJira / Linear / Azure DevOps]
+
+    GH --> GHAPI[GitHub API]
+    BB --> BBAPI[Bitbucket API]
+    GL --> GLAPI[GitLab API]
+    NEXT --> OTHERAPI[Other Provider APIs]
+```
+
 ### Add a provider in 4 steps
 
 1. Implement `ProviderAdapter`
