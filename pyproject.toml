@@ -1,7 +1,7 @@
 [project]
 name = "repomedic"
 version = "0.1.0"
-description = "Scan GitHub repos for stale/blocked issues and PRs; draft actionable next steps."
+description = "Scan repos across providers for stale/blocked issues and PRs; draft actionable next steps."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
