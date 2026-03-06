@@ -26,6 +26,9 @@ repomedic scan --config examples/config.json
 
 # JSON output for automation
 repomedic scan --config examples/config.json --json
+
+# Apply labels/comments (GitHub adapter implemented)
+repomedic scan --provider github --repo owner/repo --apply
 ```
 
 ## Output includes
@@ -38,8 +41,8 @@ repomedic scan --config examples/config.json --json
 - Shared core engine (`engine.py`) for analysis + action planning
 - Normalized model (`WorkItem`) used by every provider adapter
 - Provider adapters:
-  - `providers/github.py`
-  - `providers/bitbucket.py`
+  - `providers/github.py` (fetch + apply labels/comments)
+  - `providers/bitbucket.py` (fetch implemented)
   - `providers/gitlab.py` (scaffold)
 - Shared scoring logic (`scoring.py`) for stale/blocked/risk
 - Normalized action intents (`actions.py`) for comment/label/status flows
