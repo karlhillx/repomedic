@@ -1,0 +1,7 @@
+{
+  "repos": [
+    "octocat/Hello-World"
+  ],
+  "stale_after_days": 10,
+  "max_items_per_repo": 50
+}
