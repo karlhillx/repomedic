@@ -84,5 +84,57 @@ class BitbucketAdapter(ProviderAdapter):
             yield from self._iter_prs(client, workspace, repo_slug, max_items_per_type)
 
     def apply_actions(self, actions: list[Action], dry_run: bool = True) -> None:
-        _ = actions
-        _ = dry_run
+        """Apply a batch of actions to Bitbucket items."""
+        with self._client() as client:
+            for action in actions:
+                workspace, repo_slug = self._split_repo(action.repo)
+                
+                if isinstance(action, PostComment):
+                    self._post_comment(client, workspace, repo_slug, action, dry_run)
+                elif isinstance(action, AddLabel):
+                    # Bitbucket doesn't have a direct 'labels' concept like GitHub, 
+                    # but we can set 'kind' for issues as a proxy.
+                    if action.labels:
+                        self._set_issue_kind(client, workspace, repo_slug, action, dry_run)
+
+    def _post_comment(self, client: httpx.Client, workspace: str, repo_slug: str, action: PostComment, dry_run: bool) -> None:
+        """Post a comment to an issue or pull request."""
+        endpoint = "issues" if action.repo.split("/")[-1] in action.repo else "pullrequests"
+        # Determine endpoint based on finding type (this would need better metadata in Action)
+        # For MVP, we assume issues for now as a safe default or check context.
+        # Actually, let's just try both or refine the Action model.
+        url = f"https://api.bitbucket.org/2.0/repositories/{workspace}/{repo_slug}/issues/{action.number}/comments"
+        
+        if dry_run:
+            print(f"[DRY-RUN] Would post comment to Bitbucket {action.repo}#{action.number}")
+            return
+
+        payload = {"content": {"raw": action.body}}
+        r = client.post(url, json=payload)
+        
+        if r.status_code == 404:
+            # Try PR endpoint if issue 404s
+            url = f"https://api.bitbucket.org/2.0/repositories/{workspace}/{repo_slug}/pullrequests/{action.number}/comments"
+            r = client.post(url, json=payload)
+            
+        r.raise_for_status()
+
+    def _set_issue_kind(self, client: httpx.Client, workspace: str, repo_slug: str, action: AddLabel, dry_run: bool) -> None:
+        """Update the 'kind' field of a Bitbucket issue (proxy for labels)."""
+        if dry_run:
+            print(f"[DRY-RUN] Would update issue kind for {action.repo}#{action.number}")
+            return
+
+        # Use the first valid priority/status label as the kind
+        kind = "bug"
+        for label in action.labels:
+            if "priority" in label or "status" in label:
+                kind = label.split(":")[-1]
+                break
+        
+        url = f"https://api.bitbucket.org/2.0/repositories/{workspace}/{repo_slug}/issues/{action.number}"
+        payload = {"kind": kind}
+        r = client.put(url, json=payload)
+        # PRs don't have 'kind', so if this 404s we just ignore it for PRs
+        if r.status_code != 404:
+            r.raise_for_status()
